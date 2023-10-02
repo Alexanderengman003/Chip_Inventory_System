@@ -20,7 +20,6 @@ namespace Chip_Inventory_System
 {
     public partial class Form1 : Form
     {
-        y
         private readonly InteractWithGrid interactWithGrid; // Declare the field
         private readonly ReadWriteData readWriteData; // Declare the field
         private readonly InteractWithDatabase interactWithDatabase;
