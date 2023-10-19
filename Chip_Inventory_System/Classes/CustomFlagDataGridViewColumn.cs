@@ -107,7 +107,6 @@ namespace Chip_Inventory_System
             {
                 flagKey = "blueFlag";
             }
-
             return flagKey;
         }
     }

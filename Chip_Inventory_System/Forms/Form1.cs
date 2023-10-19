@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Configuration;
 using System.Data;
 using System.Data.Common;
 using System.Data.SqlClient;
@@ -14,6 +15,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Windows.Interop;
+using RabbitMQ.Client;
 using Zuby.ADGV;
 
 namespace Chip_Inventory_System
@@ -28,16 +30,21 @@ namespace Chip_Inventory_System
         public string queryWafer = "SELECT * FROM Wafer_inventory_list";
         public string queryChip = "SELECT * FROM Chip_inventory_list";
         public string queryLotList = "SELECT * FROM Lot_list";
+        public string queryChipLog = "SELECT * FROM Chip_inventory_log";
         public string userName = "Alexander Engman";
-        string destinationTableWafer = "Wafer_inventory_list";
+        public string destinationTableWafer = "Wafer_inventory_list";
         public string destinationTableChip = "Chip_inventory_list";
+        public string destinationTableLotList = "Chip_inventory_list";
         private string filePath = @"Z:\Shared\Ascilion\General\4_Storage (STO)\Wafers\Dev\";
         private string fileNameChip = "chip_inventory_list.csv";
         private string fileNameWafer = "wafer_inventory_list.csv";
         private string fileNameLot = "lot_list.csv";
+        private string fileNameChipLog = "chip_inventory_log.csv";
         private string buttonColumn = "ButtonColumn";
         private UserInputLot userInputForm;
         private Timer CsvBackupTimer;
+        private StatisticsForm statisticsForm; // Declare an instance of StatisticsForm
+
 
         public List<string> includedColumnsWafer = new List<string>
             {
@@ -125,18 +132,17 @@ namespace Chip_Inventory_System
         }
 
 
-    public Form1()
+        public Form1()
         {
             InitializeComponent();
             InitializeAdvancedDataGridView();
             toggleButtonsWafer(false);
             toggleButtonsChip(false);
+            statisticsForm = new StatisticsForm(this);
             interactWithGrid = new InteractWithGrid(); // Initialize the field
             readWriteData = new ReadWriteData(); // Initialize the field
-
             interactWithDatabase = new InteractWithDatabase(); // Initialize the field
             addToLot = new AddToLot(this);
-
         }
 
         private void toggleButtonsWafer(bool enabled)
@@ -154,7 +160,6 @@ namespace Chip_Inventory_System
 
         private void Form1_Load(object sender, EventArgs e)
         {
-
             CustomFlagColumn flagColumn = new CustomFlagColumn();
             flagColumn.Name = "Flag";
             flagColumn.Width = 20;
@@ -169,53 +174,31 @@ namespace Chip_Inventory_System
             InitializeBackupTimer();
         }
 
-
-        public void UpdateCellValueAndSql(string destinationTable, DataGridViewRow row, string columnName, object newValue)
-        {
-            row.Cells[columnName].Value = newValue;
-            int rowID = Convert.ToInt32(row.Cells["ID"].Value);
-
-            // Write the edited value to the SQL database
-            readWriteData.WriteToSqlReplace(destinationTable, rowID, columnName, newValue);
-
-            // Check if the changed cell is in the "Picked," "Lot," or "Lot status" columns
-            if (columnName == "Picked" || columnName == "Lot" || columnName == "Lot status")
-            {
-                // Update the flag column immediately based on the cell values
-                string pickedValue = row.Cells["Picked"].Value?.ToString();
-                string lotValue = row.Cells["Lot"].Value?.ToString();
-                string lotStatusValue = row.Cells["Lot status"].Value?.ToString();
-
-                // Access the custom flag cell in the "Flag" column and set its value
-                CustomFlagCell flagCell = row.Cells["Flag"] as CustomFlagCell;
-                if (flagCell != null)
-                {
-                    // Use the LoadFlagImage method to set the value of the "Flag" cell
-                    row.Cells["Flag"].Value = flagCell.LoadFlagImage(flagCell.GetFlagKey(pickedValue, lotValue, lotStatusValue));
-                }
-            }
-        }
-
         private void CsvWriteTimer_Tick(object sender, EventArgs e)
         {
-            // This method will be called every 5 minutes
             readWriteData.ExportToCsv(connectionString, queryChip, filePath + fileNameChip);
             readWriteData.ExportToCsv(connectionString, queryWafer, filePath + fileNameWafer);
             readWriteData.ExportToCsv(connectionString, queryLotList, filePath + fileNameLot);
+            readWriteData.ExportToCsv(connectionString, queryChipLog, filePath + fileNameChipLog);
         }
         private void adgvWafer_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
-            if (e.RowIndex >= 0 && e.ColumnIndex >= 0)
-            {
-                // Assuming newValue is the new value entered by the user
-                object newValue = adgvWafer.Rows[e.RowIndex].Cells[e.ColumnIndex].Value;
+            // Retrieve the modified row
+            DataGridViewRow changedRow = adgvWafer.Rows[e.RowIndex];
 
-                string columnName = adgvWafer.Columns[e.ColumnIndex].DataPropertyName;
+            // Assuming there's a column named "ID" which contains the primary key of each record
+            int rowID = Convert.ToInt32(changedRow.Cells["ID"].Value);
 
-                int rowID = Convert.ToInt32(adgvWafer.Rows[e.RowIndex].Cells["ID"].Value);
+            // Retrieve the name of the modified column
+            string columnName = adgvWafer.Columns[e.ColumnIndex].Name;
 
-                readWriteData.WriteToSqlReplace(destinationTableWafer, rowID, columnName, newValue);
-            }
+            // Retrieve the new value of the modified cell
+            object newValue = changedRow.Cells[e.ColumnIndex].Value;
+
+            // Update the database
+            readWriteData.WriteToSqlReplace(destinationTableWafer, rowID, columnName, newValue);
+
+            statisticsForm.ReadAdgvWaferToDataTable(adgvWafer);
         }
 
         private void buttonPDFWafer_Click(object sender, EventArgs e)
@@ -511,18 +494,7 @@ namespace Chip_Inventory_System
 
                 dataTable.Rows.Add(dataRow);
             }
-
             return dataTable;
-        }
-
-        private void adgvLot_RowsRemoved(object sender, DataGridViewRowsRemovedEventArgs e)
-        {
-
-        }
-
-        private void adgvWafer_RowsRemoved(object sender, DataGridViewRowsRemovedEventArgs e)
-        {
-
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -590,43 +562,6 @@ namespace Chip_Inventory_System
                 }
             }
         }
-
-
-        //private void adgvWafer_CellContentClick(object sender, DataGridViewCellEventArgs e)
-        //{
-        //    try
-        //    {
-        //        if (e.ColumnIndex == adgvWafer.Columns["ButtonColumn"].Index && e.RowIndex >= 0)
-        //        {
-        //            string batchValue = adgvWafer.Rows[e.RowIndex].Cells["Batch"].Value.ToString();
-        //            string waferValue = adgvWafer.Rows[e.RowIndex].Cells["Wafer"].Value.ToString();
-        //            string needleGeneration = adgvWafer.Rows[e.RowIndex].Cells["Generation"].Value.ToString();
-
-        //            if (CombinationExistsInSQL(batchValue, waferValue))
-        //            {
-        //                    // Create and show the WaferMap form
-        //                    WaferMap waferMap = new WaferMap(batchValue, waferValue);
-        //                    waferMap.BatchValue = batchValue;
-        //                    waferMap.WaferValue = waferValue;
-        //                waferMap.Generation = needleGeneration;
-        //                waferMap.Text = "Information for Batch: " + batchValue + ", Wafer: " + waferValue;
-        //                waferMap.Show();
-        //            }
-        //            else
-        //            {
-        //                // Show a message indicating that the combination doesn't exist
-        //                MessageBox.Show("The combination of Batch and Wafer does not exist in the database.", "Combination Not Found", MessageBoxButtons.OK, MessageBoxIcon.Information);
-        //            }
-        //        }
-
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        MessageBox.Show("An error occurred: " + ex.Message);
-        //    }
-        //}
-
-        private Dictionary<int, bool> disabledButtons = new Dictionary<int, bool>();
 
         private void adgvWafer_CellClick(object sender, DataGridViewCellEventArgs e)
         {
@@ -696,6 +631,47 @@ namespace Chip_Inventory_System
             //    };
             //    yourForm.Show();
             //}
+        }
+
+        private void buttonStatistics_Click(object sender, EventArgs e)
+        {
+            //DataTable dataTable = new DataTable();
+
+            //// Add columns to the DataTable with the same names as adgvWafer columns
+            //foreach (DataGridViewColumn column in adgvWafer.Columns)
+            //{
+            //    dataTable.Columns.Add(column.HeaderText);
+            //}
+
+            //// Populate the DataTable with values from adgvWafer
+            //foreach (DataGridViewRow row in adgvWafer.Rows)
+            //{
+            //    if (!row.IsNewRow)
+            //    {
+            //        DataRow dataRow = dataTable.NewRow();
+
+            //        foreach (DataGridViewCell cell in row.Cells)
+            //        {
+            //            dataRow[cell.ColumnIndex] = cell.Value;
+            //        }
+
+            //        dataTable.Rows.Add(dataRow);
+            //    }
+            //}
+
+            //// Create an instance of the StatisticsForm and pass both the DataTable and Form1 as parameters
+            //StatisticsForm statisticsForm = new StatisticsForm(dataTable); // 'this' refers to the current Form1 instance
+
+            //// Set the TopMost property to true to keep the form on top
+            //statisticsForm.TopMost = true;
+
+            //// Show the StatisticsForm
+            statisticsForm.Show();
+        }
+
+        private void adgvWafer_DataBindingComplete(object sender, DataGridViewBindingCompleteEventArgs e)
+        {
+            statisticsForm.ReadAdgvWaferToDataTable(adgvWafer);
         }
     }
 }

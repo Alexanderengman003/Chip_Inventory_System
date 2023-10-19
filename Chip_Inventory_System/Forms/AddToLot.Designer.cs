@@ -191,6 +191,7 @@
             this.adgvLotList.RightToLeft = System.Windows.Forms.RightToLeft.No;
             this.adgvLotList.RowHeadersWidth = 62;
             this.adgvLotList.RowTemplate.Height = 28;
+            this.adgvLotList.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.CellSelect;
             this.adgvLotList.Size = new System.Drawing.Size(941, 1232);
             this.adgvLotList.SortStringChangedInvokeBeforeDatasourceUpdate = true;
             this.adgvLotList.TabIndex = 2;

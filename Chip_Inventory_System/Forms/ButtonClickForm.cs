@@ -4,6 +4,8 @@ using System.Data;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -306,33 +308,42 @@ namespace Chip_Inventory_System
             // Get the value of 'ID' from the found row
             string ID = chipRow.Field<string>("ID");
 
-            // Handle key presses to modify the ID
             if (e.KeyCode == Keys.Right)
             {
                 int currentID = int.Parse(ID);
-                if (currentID < 221)
+
+                // Check if the current ID does not belong to the last row of filteredDataTable
+                if (chipRow != filteredDataTable.AsEnumerable().LastOrDefault())
                 {
                     currentID++;
                     ID = currentID.ToString();
                 }
                 else
                 {
-                    MessageBox.Show("The selected chip is the last.");
+                    return;
                 }
             }
             else if (e.KeyCode == Keys.Left)
             {
                 int currentID = int.Parse(ID);
-                if (currentID > 1)
+
+                // Check if the current ID does not belong to the first row of filteredDataTable
+                if (chipRow != filteredDataTable.AsEnumerable().FirstOrDefault())
                 {
                     currentID--;
                     ID = currentID.ToString();
+
+                    // Reset chipRow to the new row
+                    chipRow = filteredDataTable.AsEnumerable()
+                        .FirstOrDefault(r => r.Field<string>("ID") == ID);
                 }
                 else
                 {
-                    MessageBox.Show("The selected chip is the first.");
+                    return;
                 }
             }
+
+
             DataRow IDRow = filteredDataTable.AsEnumerable()
                 .FirstOrDefault(r => r.Field<string>("ID") == ID);
 

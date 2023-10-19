@@ -55,7 +55,6 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.adgvChipData.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.adgvChipData.EditMode = System.Windows.Forms.DataGridViewEditMode.EditOnKeystroke;
-            this.adgvChipData.Enabled = false;
             this.adgvChipData.FilterAndSortEnabled = true;
             this.adgvChipData.FilterStringChangedInvokeBeforeDatasourceUpdate = true;
             this.adgvChipData.Location = new System.Drawing.Point(3, 23);
@@ -68,6 +67,7 @@
             this.adgvChipData.Size = new System.Drawing.Size(800, 124);
             this.adgvChipData.SortStringChangedInvokeBeforeDatasourceUpdate = true;
             this.adgvChipData.TabIndex = 0;
+            this.adgvChipData.TabStop = false;
             this.adgvChipData.CellValueChanged += new System.Windows.Forms.DataGridViewCellEventHandler(this.adgvChipData_CellValueChanged);
             // 
             // pictureBox1

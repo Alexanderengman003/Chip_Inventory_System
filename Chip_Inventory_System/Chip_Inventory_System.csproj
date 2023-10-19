@@ -61,12 +61,36 @@
       <HintPath>..\packages\Microsoft.IO.RecyclableMemoryStream.1.4.1\lib\net46\Microsoft.IO.RecyclableMemoryStream.dll</HintPath>
     </Reference>
     <Reference Include="PresentationCore" />
+    <Reference Include="RabbitMQ.Client, Version=6.0.0.0, Culture=neutral, PublicKeyToken=89e7d7c5feba84ce, processorArchitecture=MSIL">
+      <HintPath>..\packages\RabbitMQ.Client.6.5.0\lib\net461\RabbitMQ.Client.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
+    <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
+    </Reference>
     <Reference Include="System.configuration" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Memory, Version=4.0.1.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Memory.4.5.5\lib\net461\System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors, Version=4.1.4.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Numerics.Vectors.4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=4.0.4.1, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.4.5.3\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    </Reference>
     <Reference Include="System.Security" />
+    <Reference Include="System.Threading.Channels, Version=7.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Threading.Channels.7.0.0\lib\net462\System.Threading.Channels.dll</HintPath>
+    </Reference>
     <Reference Include="System.Threading.Tasks" />
+    <Reference Include="System.Threading.Tasks.Extensions, Version=4.2.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Transactions" />
     <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Windows.Forms.DataVisualization" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="Microsoft.CSharp" />
@@ -78,25 +102,25 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AddToLot.cs">
+    <Compile Include="Forms\AddToLot.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="AddToLot.Designer.cs">
+    <Compile Include="Forms\AddToLot.Designer.cs">
       <DependentUpon>AddToLot.cs</DependentUpon>
     </Compile>
-    <Compile Include="ButtonClickForm.cs">
+    <Compile Include="Forms\ButtonClickForm.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="ButtonClickForm.Designer.cs">
+    <Compile Include="Forms\ButtonClickForm.Designer.cs">
       <DependentUpon>ButtonClickForm.cs</DependentUpon>
     </Compile>
     <Compile Include="Classes\DataAccess.cs" />
-    <Compile Include="CustomFlagDataGridViewColumn.cs" />
-    <Compile Include="DoubleBufferedAdvancvedDataGridView.cs" />
-    <Compile Include="Form1.cs">
+    <Compile Include="Classes\CustomFlagDataGridViewColumn.cs" />
+    <Compile Include="Classes\DoubleBufferedAdvancvedDataGridView.cs" />
+    <Compile Include="Forms\Form1.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="Form1.Designer.cs">
+    <Compile Include="Forms\Form1.Designer.cs">
       <DependentUpon>Form1.cs</DependentUpon>
     </Compile>
     <Compile Include="Classes\InteractWithGrid.cs" />
@@ -106,26 +130,35 @@
     <Compile Include="Classes\ReadWriteData.cs" />
     <Compile Include="Classes\StoreToCSV.cs" />
     <Compile Include="Classes\StoreToPDF.cs" />
-    <Compile Include="UserInputLot.cs">
+    <Compile Include="Forms\UserInputLot.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="UserInputLot.Designer.cs">
+    <Compile Include="Forms\UserInputLot.Designer.cs">
       <DependentUpon>UserInputLot.cs</DependentUpon>
     </Compile>
-    <Compile Include="WaferMap.cs">
+    <Compile Include="Forms\WaferMap.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="WaferMap.Designer.cs">
+    <Compile Include="Forms\WaferMap.Designer.cs">
       <DependentUpon>WaferMap.cs</DependentUpon>
     </Compile>
-    <EmbeddedResource Include="AddToLot.resx">
+    <Compile Include="Forms\StatisticsForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Forms\StatisticsForm.Designer.cs">
+      <DependentUpon>StatisticsForm.cs</DependentUpon>
+    </Compile>
+    <EmbeddedResource Include="Forms\AddToLot.resx">
       <DependentUpon>AddToLot.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="ButtonClickForm.resx">
+    <EmbeddedResource Include="Forms\ButtonClickForm.resx">
       <DependentUpon>ButtonClickForm.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="Form1.resx">
+    <EmbeddedResource Include="Forms\Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Forms\StatisticsForm.resx">
+      <DependentUpon>StatisticsForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>PublicResXFileCodeGenerator</Generator>
@@ -137,10 +170,10 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
-    <EmbeddedResource Include="UserInputLot.resx">
+    <EmbeddedResource Include="Forms\UserInputLot.resx">
       <DependentUpon>UserInputLot.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="WaferMap.resx">
+    <EmbeddedResource Include="Forms\WaferMap.resx">
       <DependentUpon>WaferMap.cs</DependentUpon>
     </EmbeddedResource>
     <None Include="packages.config" />

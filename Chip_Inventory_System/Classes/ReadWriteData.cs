@@ -14,41 +14,6 @@ namespace Chip_Inventory_System
     {
         private string connectionString = "Server=Ascilion006;Database=Chip_Inventory_Database;Integrated Security=True";
 
-
-        public void CreateNewRowSql(string tableName, DataTable dataTable)
-        {
-            try
-            {
-                using (SqlConnection connection = new SqlConnection(connectionString))
-                {
-                    connection.Open();
-
-                    foreach (DataRow row in dataTable.Rows)
-                    {
-                        // Create a parameterized SQL INSERT command for each row
-                        string insertCommand = $"INSERT INTO {tableName} ({string.Join(", ", dataTable.Columns.Cast<DataColumn>().Select(col => col.ColumnName))}) " +
-                                               $"VALUES ({string.Join(", ", dataTable.Columns.Cast<DataColumn>().Select(col => "@" + col.ColumnName))})";
-
-                        using (SqlCommand sqlCommand = new SqlCommand(insertCommand, connection))
-                        {
-                            // Add parameters for each column value
-                            foreach (DataColumn column in dataTable.Columns)
-                            {
-                                sqlCommand.Parameters.AddWithValue("@" + column.ColumnName, row[column]);
-                            }
-
-                            sqlCommand.ExecuteNonQuery();
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"An error occurred: {ex.Message}");
-            }
-        }
-
-
         public void ExportToCsv(string connectionString, string query, string filePath)
         {
             try
@@ -86,6 +51,149 @@ namespace Chip_Inventory_System
             }
         }
 
+        public void CreateNewRowSql(string tableName, DataTable dataTable)
+        {
+            try
+            {
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    foreach (DataRow row in dataTable.Rows)
+                    {
+                        // Create a parameterized SQL INSERT command for each row
+                        string insertCommand = $"INSERT INTO {tableName} ({string.Join(", ", dataTable.Columns.Cast<DataColumn>().Select(col => $"[{col.ColumnName}]"))}) " +
+                                               $"VALUES ({string.Join(", ", dataTable.Columns.Cast<DataColumn>().Select(col => "@" + col.ColumnName.Replace(" ", "")))})";
+
+                        using (SqlCommand sqlCommand = new SqlCommand(insertCommand, connection))
+                        {
+                            // Add parameters for each column value
+                            foreach (DataColumn column in dataTable.Columns)
+                            {
+                                // Remove spaces from parameter names, if needed.
+                                sqlCommand.Parameters.AddWithValue("@" + column.ColumnName.Replace(" ", ""), row[column]);
+                            }
+
+                            sqlCommand.ExecuteNonQuery();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+            }
+        }
+
+        public void UpdateSqlTableWithMatchingIDs(string tableName, DataTable sourceTable)
+        {
+            if (!sourceTable.Columns.Contains("ID"))
+            {
+                Console.WriteLine("The source DataTable must have an 'ID' column for matching.");
+                return;
+            }
+
+            try
+            {
+                Console.WriteLine($"Updating rows in table '{tableName}'...");
+
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    foreach (DataRow sourceRow in sourceTable.Rows)
+                    {
+                        int id;
+                        if (int.TryParse(sourceRow["ID"].ToString(), out id))
+                        {
+                            Console.WriteLine($"Updating row with ID: {id}");
+
+                            // Generate an UPDATE statement for the matching ID
+                            string updateCommand = $"UPDATE {tableName} SET ";
+
+                            List<SqlParameter> parameters = new List<SqlParameter>();
+
+                            foreach (DataColumn column in sourceTable.Columns)
+                            {
+                                if (column.ColumnName != "ID")
+                                {
+                                    // Remove spaces and special characters from column names
+                                    string paramName = column.ColumnName.Replace(" ", "").Replace(".", "");
+                                    updateCommand += $"[{column.ColumnName}] = @{paramName}, ";
+                                    parameters.Add(new SqlParameter($"@{paramName}", sourceRow[column]));
+                                }
+                            }
+
+                            // Remove the trailing comma and space
+                            updateCommand = updateCommand.TrimEnd(' ', ',');
+
+                            updateCommand += $" WHERE [ID] = {id}";
+
+                            Console.WriteLine($"Update command: {updateCommand}");
+
+                            using (SqlCommand sqlCommand = new SqlCommand(updateCommand, connection))
+                            {
+                                // Add the SqlParameter objects to the command
+                                sqlCommand.Parameters.AddRange(parameters.ToArray());
+
+                                int rowsAffected = sqlCommand.ExecuteNonQuery();
+                                Console.WriteLine($"Rows affected: {rowsAffected}");
+                            }
+                        }
+                        else
+                        {
+                            // Handle cases where the "ID" value cannot be converted to an int
+                            Console.WriteLine($"Invalid 'ID' value: {sourceRow["ID"]}");
+                        }
+                    }
+                }
+
+                Console.WriteLine($"Update complete for table '{tableName}'");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred while updating the rows: " + ex.Message);
+            }
+        }
+
+        public void WriteToSqlReplaceMultipleRows(string tableName, List<int> rowIDs, List<string> columnNames, List<object> newValues)
+        {
+            if (columnNames.Count != newValues.Count)
+            {
+                Console.WriteLine("The count of column names and new values should be equal.");
+                return;
+            }
+
+            try
+            {
+                Console.WriteLine($"Updating rows in table '{tableName}'...");
+
+                using (SqlConnection connection = new SqlConnection(connectionString))
+                {
+                    connection.Open();
+
+                    for (int i = 0; i < columnNames.Count; i++)
+                    {
+                        string columnName = columnNames[i];
+                        object newValue = newValues[i];
+
+                        string updateCommand = $"UPDATE {tableName} SET [{columnName}] = @NewValue WHERE [ID] IN ({string.Join(",", rowIDs)})";
+
+                        using (SqlCommand sqlCommand = new SqlCommand(updateCommand, connection))
+                        {
+                            sqlCommand.Parameters.AddWithValue("@NewValue", newValue);
+
+                            int rowsAffected = sqlCommand.ExecuteNonQuery();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("An error occurred while updating the rows: " + ex.Message);
+            }
+        }
+
 
         public void WriteToSqlReplace(string tableName, int rowID, string columnName, object newValue)
         {
@@ -114,6 +222,7 @@ namespace Chip_Inventory_System
                 }
             }
         }
+
         public DataTable ReadFromSql(string connectionString, string sqlQuery)
         {
             DataTable dataTable = new DataTable();
@@ -216,7 +325,6 @@ namespace Chip_Inventory_System
                     existingRow[$"{innerValue} Count"] = currentCount + 1;
                 }
             }
-
             return resultTable;
         }
 

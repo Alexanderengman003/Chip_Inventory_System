@@ -11,24 +11,19 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 using static System.Windows.Forms.VisualStyles.VisualStyleElement.StartPanel;
 
 namespace Chip_Inventory_System
 {
     public partial class AddToLot : Form
     {
-        private readonly InteractWithDatabase interactWithDatabase;
         private readonly InteractWithGrid interactWithGrid;
-        private readonly UserInputLot userInputLot;
-
-        string destinationTableChip = "Chip_inventory_list";
-        string destinationTableChipLog = "Chip_inventory_log";
-        private string filePath = @"Z:\Shared\Ascilion\General\4_Storage (STO)\Wafers\Test\";
-        private string fileNameChip = "chip_inventory_list.csv";
-        private string fileNameChipLog = "chip_inventory_log.csv";
         string destinationTableLot = "Lot_list";
         private Form1 parentForm;
         private readonly ReadWriteData readWriteData; // Declare the field
+        private DataTable changedRowsDataTable;
+        private Stopwatch stopwatch;
 
         // Constructor that takes a DataTable as an argument
         public AddToLot(Form1 parentForm)
@@ -36,9 +31,9 @@ namespace Chip_Inventory_System
             InitializeComponent();
             InitializeAdvancedDataGridView();
             this.parentForm = parentForm;
-            interactWithDatabase = new InteractWithDatabase(); // Initialize the field
             readWriteData = new ReadWriteData(); // Initialize the field
             interactWithGrid = new InteractWithGrid(); // Initialize the field
+            stopwatch = new Stopwatch();
         }
 
         private void InitializeAdvancedDataGridView()
@@ -48,220 +43,221 @@ namespace Chip_Inventory_System
             adgvLotList.AutoGenerateColumns = true; // Automatically generate columns
             adgvLotList.Dock = DockStyle.Fill;
             adgvLotList.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
-            //DataGridViewButtonColumn buttonColumn = new DataGridViewButtonColumn();
-            //buttonColumn.HeaderText = "Info";
-            //buttonColumn.Text = "Open";
-            //buttonColumn.Name = "ButtonColumn";
-            //buttonColumn.CellTemplate = new DataGridViewButtonCell { UseColumnTextForButtonValue = true };
-            //buttonColumn.SortMode = DataGridViewColumnSortMode.NotSortable; // Disable sorting
-            //adgvLotList.Columns.Add(buttonColumn);
-
-        }
-
-        private void buttonAdd_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                // Check if there are selected rows in parentForm.adgvChip
-                if (parentForm.adgvChip.SelectedRows.Count == 0)
-                {
-                    MessageBox.Show("Please select at least one row in chip list", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                // Check if there is a selected row in adgvLotList
-                if (adgvLotList.SelectedRows.Count == 0)
-                {
-                    MessageBox.Show("Please select a row in lot list.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-
-                DataGridViewRow selectedRow = adgvLotList.SelectedRows[0];
-                string selectedLotName = selectedRow.Cells["Lot"].Value.ToString();
-
-                DialogResult result = MessageBox.Show("Do you want to add the items to Lot " + selectedLotName + "?", "Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-                if (result == DialogResult.Yes)
-                {
-                    // Get the corresponding "Lot status" value from adgvLotList
-                    string lotStatus = selectedRow.Cells["Lot status"].Value.ToString();
-
-                    // Iterate through selected rows in parentForm.adgvChip
-                    foreach (DataGridViewRow row in parentForm.adgvChip.SelectedRows)
-                    {
-                        int rowID = Convert.ToInt32(row.Cells["ID"].Value);
-                        // Extract values from the selected row in adgvChip
-
-                        string batchValue = row.Cells["Batch"].Value.ToString();
-                        string waferValue = row.Cells["Wafer"].Value.ToString();
-
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot", selectedLotName);
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot date", DateTime.Now);
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Last edited", DateTime.Now);
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot by", parentForm.userName);
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Comment", parentForm.userName + " added to lot " + selectedLotName);
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot status", lotStatus);
-                    }
-                    // Update the grid after making changes
-                    updateGrid();
-                }
-            }
-            catch (Exception ex)
-            {
-                // Handle exceptions appropriately, e.g., log the exception or show an error message.
-                MessageBox.Show("An error occurred: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
         }
 
         private void updateGrid()
         {
-            List<string> valuesToSearch = new List<string> { "Good", "Fail" };
-            List<string> columnsToSearchStatus = new List<string> { "Status" };
-            List<string> columnsToSearchEmpty = new List<string> { "Lot", "Picked" };
-            List<string> columnsToSearchLotList = new List<string> { "Lot" };
-
-            DataTable lotList = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryLotList);
-            DataTable chipList = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryChip);
-
-            // Extract all distinct Lot values from the lotList table
-            List<string> valuesToSearchLotList = lotList.AsEnumerable()
-                .Select(row => row.Field<string>("Lot"))
-                .Distinct()
-                .ToList();
-
-            // Assuming you have a DataGridView named 'adgvLotList' for displaying the counts
-            string columnNameLot = "Lot";
-
-            foreach (string valueToCount in valuesToSearchLotList)
+            try
             {
-                int countLot = chipList.AsEnumerable()
-                    .Count(row => row.Field<string>(columnNameLot) == valueToCount);
-                foreach (DataGridViewRow waferGridRow in adgvLotList.Rows)
-                {
-                    string adgvLot = waferGridRow.Cells["Lot"].Value?.ToString();
+                // Read data tables from SQL
+                DataTable chipList = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryChip);
+                DataTable waferList = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryWafer);
+                DataTable lotList = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryLotList);
 
-                    if (valueToCount == adgvLot)
+                // Initialize dictionaries to store counts
+                Dictionary<string, int> countGood = new Dictionary<string, int>();
+                Dictionary<string, int> countFail = new Dictionary<string, int>();
+                Dictionary<string, int> countPicked = new Dictionary<string, int>();
+                Dictionary<string, int> countLot = new Dictionary<string, int>();
+
+                List<string> valuesToSearchLotList = lotList.AsEnumerable()
+                    .Select(row => row.Field<string>("Lot"))
+                    .Distinct()
+                    .ToList();
+
+                string columnNameLot = "Lot";
+
+                // Create a new DataTable to store rows with changed 'Current qty'
+                DataTable changedRowsDataTable = lotList.Clone();
+
+                // Create a dictionary to store the initial sum of 'Current qty' for each 'Lot' value
+                Dictionary<string, int> initialSumByLot = new Dictionary<string, int>();
+
+                // Calculate the initial sum of 'Current qty' for each 'Lot' value
+                foreach (string valueToCount in valuesToSearchLotList)
+                {
+                    int initialSum = lotList.AsEnumerable()
+                        .Where(row => row.Field<string>(columnNameLot) == valueToCount)
+                        .Sum(row => int.Parse(row["Current qty"].ToString()));
+
+                    initialSumByLot[valueToCount] = initialSum;
+                }
+
+                foreach (string valueToCount in valuesToSearchLotList)
+                {
+                    int count = chipList.AsEnumerable()
+                        .Count(row => row.Field<string>(columnNameLot) == valueToCount);
+
+                    countLot[valueToCount] = count; // Store the count in the dictionary
+
+                    // Update the "Current qty" column in lotListDataTable
+                    DataRow[] matchingRows = lotList.Select($"Lot = '{valueToCount}'");
+                    foreach (DataRow row in matchingRows)
                     {
-                        waferGridRow.Cells["Current qty"].Value = countLot;
+                        int originalQty = int.Parse(row["Current qty"].ToString());
+                        int updatedQty = count;
+
+                        // If 'Current qty' changed or decreased, add the row to the new DataTable
+                        if (originalQty != updatedQty || updatedQty < initialSumByLot[valueToCount])
+                        {
+                            DataRow newRow = changedRowsDataTable.NewRow();
+                            newRow.ItemArray = row.ItemArray; // Copy the entire row
+
+                            // Update the 'Current qty' value in the new row
+                            newRow["Current qty"] = updatedQty;
+
+                            // Add the changed row to the new DataTable
+                            changedRowsDataTable.Rows.Add(newRow);
+                        }
+
+                        // Update the 'Current qty' in the original DataTable (lotList)
+                        row["Current qty"] = updatedQty;
                     }
                 }
-            }
 
-            string columnNameStatus = "Status";
+                // Update the SQL table with matching IDs
+                readWriteData.UpdateSqlTableWithMatchingIDs(destinationTableLot, changedRowsDataTable);
 
-            // Create a dictionary to store counts for each batch/wafer combination
-            Dictionary<string, Dictionary<string, int>> batchWaferCounts = new Dictionary<string, Dictionary<string, int>>();
+                // Read the updated data from SQL into a DataTable
+                DataTable updatedLotList = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryLotList);
 
-            foreach (DataRow row in chipList.Rows)
-            {
-                string batch = row.Field<string>("Batch");
-                string wafer = row.Field<string>("Wafer");
-                string valueToCount = row.Field<string>(columnNameStatus);
+                // Set the updated DataTable as the DataSource for adgvLotList
+                adgvLotList.DataSource = updatedLotList;
 
-                // Create a unique key for the batch/wafer combination
-                string key = $"{batch}-{wafer}";
+                adgvLotList.Sort(adgvLotList.Columns["ID"], ListSortDirection.Descending);
 
-                // Check if the key exists in the dictionary, if not, initialize the counts to 0
-                if (!batchWaferCounts.ContainsKey(key))
+                // Create a DataTable to store rows with updated values
+                DataTable updatedRowsDataTable = waferList.Clone();
+
+                foreach (DataRow row in chipList.Rows)
                 {
-                    batchWaferCounts[key] = new Dictionary<string, int>
-            {
-                { "Good", 0 },
-                { "Fail", 0 }
-            };
-                }
+                    string batch = row.Field<string>("Batch");
+                    string waferValue = row.Field<string>("Wafer");
+                    string status = row.Field<string>("Status");
+                    string picked = row.Field<string>("Picked");
+                    string lot = row.Field<string>("Lot");
 
-                // Increment the count for the specific combination and value
-                if (valueToCount == "Good")
-                {
-                    batchWaferCounts[key]["Good"]++;
-                }
-                else if (valueToCount == "Fail")
-                {
-                    batchWaferCounts[key]["Fail"]++;
-                }
-            }
+                    // Create a key for the batch-wafer combination
+                    string key = $"{batch}-{waferValue}";
 
-            // Print the counts for each batch/wafer combination
-            foreach (var kvp in batchWaferCounts)
-            {
-                string[] parts = kvp.Key.Split('-');
-                string batch = parts[0];
-                string wafer = parts[1];
-                int goodCount = kvp.Value["Good"];
-                int failCount = kvp.Value["Fail"];
-                foreach (DataGridViewRow waferGridRow in parentForm.adgvWafer.Rows)
-                {
-                    string adgvBatch = waferGridRow.Cells["Batch"].Value?.ToString();
-                    string adgvWafer = waferGridRow.Cells["Wafer"].Value?.ToString();
+                    // Create a DataTable with columns "Lot" and "Qty"
+                    DataTable lotCountTable = new DataTable();
+                    lotCountTable.Columns.Add("Lot", typeof(string));
+                    lotCountTable.Columns.Add("Qty", typeof(int));
 
-                    if (batch == adgvBatch && wafer == adgvWafer)
+                    // Count "Good" and "Fail" values separately in the Status column
+                    if (!countGood.ContainsKey(key))
                     {
-                        waferGridRow.Cells["Accepted"].Value = goodCount;
-                        waferGridRow.Cells["Rejected"].Value = failCount;
+                        countGood[key] = 0;
+                    }
+                    if (status == "Good")
+                    {
+                        countGood[key]++;
+                    }
+                    else if (status == "Fail")
+                    {
+                        // Use a separate count for "Fail" status
+                        if (!countFail.ContainsKey(key))
+                        {
+                            countFail[key] = 0;
+                        }
+                        countFail[key]++;
+                    }
+
+                    // Count non-empty cells in the "Picked" column
+                    if (!countPicked.ContainsKey(key))
+                    {
+                        countPicked[key] = 0;
+                    }
+
+                    if (!string.IsNullOrEmpty(picked))
+                    {
+                        countPicked[key]++;
+                    }
+
+                    // Count non-empty cells in the "Lot" column
+                    if (!countLot.ContainsKey(key))
+                    {
+                        countLot[key] = 0;
+                    }
+
+                    if (!string.IsNullOrEmpty(lot))
+                    {
+                        countLot[key]++;
                     }
                 }
-                Console.WriteLine($"Batch: {batch}, Wafer: {wafer}, Good: {goodCount}, Fail: {failCount}");
-            }
 
-            Dictionary<string, Dictionary<string, int>> batchWaferCounts2 = new Dictionary<string, Dictionary<string, int>>();
-
-            string columnNamePicked = "Picked";
-
-            // Create a dictionary to store counts for each batch/wafer combination
-
-            foreach (DataRow row in chipList.Rows)
-            {
-                string batch = row.Field<string>("Batch");
-                string wafer = row.Field<string>("Wafer");
-                string lotValue = row.Field<string>(columnNameLot);
-                string pickedValue = row.Field<string>(columnNamePicked);
-
-                // Create a unique key for the batch/wafer combination
-                string key = $"{batch}-{wafer}";
-
-                // Check if the key exists in the dictionary, if not, initialize the counts to 0
-                if (!batchWaferCounts2.ContainsKey(key))
+                // Update the queryWafer DataTable based on the counts
+                foreach (DataRow waferRow in waferList.Rows)
                 {
-                    batchWaferCounts2[key] = new Dictionary<string, int>
-        {
-            { "Lot", 0 },
-            { "Picked", 0 }
-        };
-                }
+                    string batch = waferRow.Field<string>("Batch");
+                    string waferValue = waferRow.Field<string>("Wafer");
+                    string key = $"{batch}-{waferValue}";
 
-                // Increment the count based on cell values
-                if (!string.IsNullOrEmpty(lotValue))
-                {
-                    batchWaferCounts2[key]["Lot"]++;
-                }
-
-                if (!string.IsNullOrEmpty(pickedValue))
-                {
-                    batchWaferCounts2[key]["Picked"]++;
-                }
-            }
-
-            // Print the counts for each batch/wafer combination
-            foreach (var kvp in batchWaferCounts2)
-            {
-                string[] parts = kvp.Key.Split('-');
-                string batch = parts[0];
-                string wafer = parts[1];
-                int lotCount = kvp.Value["Lot"];
-                int pickedCount = kvp.Value["Picked"];
-
-                foreach (DataGridViewRow waferGridRow in parentForm.adgvWafer.Rows)
-                {
-                    string adgvBatch = waferGridRow.Cells["Batch"].Value?.ToString();
-                    string adgvWafer = waferGridRow.Cells["Wafer"].Value?.ToString();
-
-                    if (batch == adgvBatch && wafer == adgvWafer)
+                    if (countGood.ContainsKey(key) || countFail.ContainsKey(key) || countPicked.ContainsKey(key) || countLot.ContainsKey(key))
                     {
-                        waferGridRow.Cells["Reserved"].Value = lotCount;
-                        waferGridRow.Cells["Picked"].Value = pickedCount;
+                        // Get the original counts from the row
+                        int originalAccepted = 0;
+                        int originalRejected = 0;
+                        int originalPicked = 0;
+                        int originalReserved = 0;
+
+                        // Use Try-Catch to catch the "Specified cast is not valid" error
+                        try
+                        {
+                            originalAccepted = waferRow.Field<int>("Accepted");
+                            originalRejected = waferRow.Field<int>("Rejected");
+                            originalPicked = waferRow.Field<int>("Picked");
+                            originalReserved = waferRow.Field<int>("Reserved");
+                        }
+                        catch (InvalidCastException ex)
+                        {
+                            Console.WriteLine($"Error casting row data: {ex.Message}");
+                        }
+
+                        // Get the updated counts from the dictionaries (use 0 if not found)
+                        int updatedAccepted = countGood.ContainsKey(key) ? countGood[key] : 0;
+                        int updatedRejected = countFail.ContainsKey(key) ? countFail[key] : 0;
+                        int updatedPicked = countPicked.ContainsKey(key) ? countPicked[key] : 0;
+                        int updatedReserved = countLot.ContainsKey(key) ? countLot[key] : 0;
+
+                        // Check if any counts have changed
+                        if (originalAccepted != updatedAccepted ||
+                            originalRejected != updatedRejected ||
+                            originalPicked != updatedPicked ||
+                            originalReserved != updatedReserved)
+                        {
+                            // Create a new row in the updatedRowsDataTable and copy the data from the original row
+                            DataRow newRow = updatedRowsDataTable.NewRow();
+                            newRow.ItemArray = waferRow.ItemArray; // Copy the entire row
+
+                            // Update the counts in the new row
+                            newRow["Accepted"] = updatedAccepted;
+                            newRow["Rejected"] = updatedRejected;
+                            newRow["Picked"] = updatedPicked;
+                            newRow["Reserved"] = updatedReserved;
+
+                            // Add the row to the DataTable of updated rows
+                            updatedRowsDataTable.Rows.Add(newRow);
+                        }
                     }
                 }
+
+                // Update the SQL table with matching IDs
+                readWriteData.UpdateSqlTableWithMatchingIDs(parentForm.destinationTableWafer, updatedRowsDataTable);
+
+                // Read the updated data from SQL into a DataTable
+                DataTable updatedWaferList = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryWafer);
+
+                // Set the updated DataTable as the DataSource for adgvWafer
+                parentForm.adgvWafer.DataSource = updatedWaferList;
+
+                // Sort adgvWafer
+                parentForm.adgvWafer.Sort(parentForm.adgvWafer.Columns["ID"], ListSortDirection.Descending);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"An error occurred: {ex.Message}");
             }
         }
 
@@ -315,45 +311,65 @@ namespace Chip_Inventory_System
         private void AddToLot_Load(object sender, EventArgs e)
         {
             DataTable dataTableLot = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryLotList);
+            if (dataTableLot.Columns["ID"].DataType == typeof(string))
+            {
+                // Add a temporary column
+                dataTableLot.Columns.Add("TempID", typeof(int));
+
+                // Copy the data from the original ID column to TempID and convert to int
+                foreach (DataRow row in dataTableLot.Rows)
+                {
+                    row["TempID"] = Convert.ToInt32(row["ID"]);
+                }
+
+                // Remove the original ID column and rename the TempID column to ID
+                dataTableLot.Columns.Remove("ID");
+                dataTableLot.Columns["TempID"].ColumnName = "ID";
+            }
+            updateGrid();
             adgvLotList.DataSource = dataTableLot;
+            adgvLotList.Sort(adgvLotList.Columns["ID"], ListSortDirection.Descending);
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
-            try
-            {
-                // Check if there is at least one selected row in adgvChip
-                if (parentForm.adgvChip.SelectedRows.Count == 0)
-                {
-                    MessageBox.Show("Please select at least one row in chip list", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
+            List<string> columnNames = new List<string> { "Picked", "Picked by", "Last edited", "Comment" };
+            List<object> newValues = new List<object> { DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), parentForm.userName, DateTime.Now, $"{parentForm.userName} picked chip" };
 
-                DialogResult result = MessageBox.Show("Do you want to pick the chips?", "Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            UpdateAndReselectRows(columnNames, newValues);
+            updateGrid();
+        }
 
-                if (result == DialogResult.Yes)
-                {
-                    // Iterate through selected rows in parentForm.adgvChip
-                    foreach (DataGridViewRow row in parentForm.adgvChip.SelectedRows)
-                    {
-                        int rowID = Convert.ToInt32(row.Cells["ID"].Value);
+        private void buttonRemovePick_Click(object sender, EventArgs e)
+        {
+            List<string> columnNames = new List<string> { "Picked", "Picked by", "Last edited", "Comment" };
+            List<object> newValues = new List<object> { "", "", DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), $"{parentForm.userName} unpicked chip" };
 
-                        // Update the DataGridView with the edited values and call the method
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Picked", DateTime.Now);
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Last edited", DateTime.Now);
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Picked by", parentForm.userName);
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Comment", parentForm.userName + "picked chip");
-                    }
+            UpdateAndReselectRows(columnNames, newValues);
+            updateGrid();
+        }
 
-                }
-                updateGrid();
-            }
-            catch (Exception ex)
-            {
-                // Handle the exception and display an error message
-                MessageBox.Show("An error occurred: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
+        private void buttonRemoveLot_Click(object sender, EventArgs e)
+        {
+            List<string> columnNames = new List<string> { "Lot", "Lot date", "Last edited", "Lot by", "Lot status", "Comment" };
+            List<object> newValues = new List<object> { "", "", DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), "", "", $"{parentForm.userName} removed from lot" };
 
+
+            UpdateAndReselectRows(columnNames, newValues);
+            updateGrid();
+        }
+
+        private void buttonAdd_Click(object sender, EventArgs e)
+        {
+            DataGridViewRow selectedRow = adgvLotList.SelectedRows[0];
+            string selectedLotName = selectedRow.Cells["Lot"].Value.ToString();
+            string lotStatus = selectedRow.Cells["Lot status"].Value.ToString();
+
+            List<string> columnNames = new List<string> { "Lot", "Lot date", "Last edited", "Lot by", "Lot status", "Comment" };
+            List<object> newValues = new List<object> { selectedLotName, DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss"), parentForm.userName, lotStatus, $"{parentForm.userName} added to lot {selectedLotName}" };
+
+            UpdateAndReselectRows(columnNames, newValues);
+            updateGrid();
         }
 
         private void buttonCloseLot_Click(object sender, EventArgs e)
@@ -372,18 +388,23 @@ namespace Chip_Inventory_System
                 // Get the value from the "Lot" column of the selected row
                 string selectedLotName = selectedRow.Cells["Lot"].Value.ToString();
 
-                // Update the "Lot status" of the selected lot in adgvLotList
-                selectedRow.Cells["Lot_status"].Value = "Closed";
+                selectedRow.Cells["Lot status"].Value = "Closed";
 
-                // Update the "Lot status" of the corresponding rows in adgvChip
+                // Set up column names and new values for updating rows
+                List<string> columnNames = new List<string> { "Lot status" };
+                List<object> newValues = new List<object> { "Closed" };
+
+                // Mark rows with matching "Lot" for update
                 foreach (DataGridViewRow row in parentForm.adgvChip.Rows)
                 {
                     if (row.Cells["Lot"].Value.ToString() == selectedLotName)
                     {
-                        row.Cells["Lot status"].Value = "Closed";
-                        parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot status", "Closed");
+                        row.Selected = true;
                     }
                 }
+
+                // Use the UpdateAndReselectRows method to update selected rows
+                UpdateAndReselectRows(columnNames, newValues);
 
                 toggleLotButtons(false);
                 List<string> includedColumnsLot = parentForm.includedColumnsLot;
@@ -396,90 +417,59 @@ namespace Chip_Inventory_System
             }
         }
 
-        private void buttonRemovePick_Click(object sender, EventArgs e)
+        private void UpdateAndReselectRows(List<string> columnNames, List<object> newValues)
         {
             try
             {
-                // Check if any rows are selected
                 if (parentForm.adgvChip.SelectedRows.Count == 0)
                 {
-                    MessageBox.Show("No rows selected.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Please select at least one row in chip list.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
 
-                DialogResult result = MessageBox.Show("Do you want to unpick the items?", "Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
-                if (result == DialogResult.Yes)
+                if (columnNames.Count != newValues.Count)
                 {
-                    foreach (DataGridViewRow row in parentForm.adgvChip.SelectedRows)
-                    {
-                        // Get the "Lot" column value
-                        string pickedValue = row.Cells["Picked"].Value?.ToString();
-
-                        if (!string.IsNullOrWhiteSpace(pickedValue))
-                        {
-                            int rowID = Convert.ToInt32(row.Cells["ID"].Value);
-
-                            // Update the DataGridView with the edited values and call the method
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Picked", "");
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Last edited", DateTime.Now);
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Picked by", "");
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Comment", parentForm.userName + " unpicked chip");
-                        }
-                    }
-                }
-                updateGrid();
-            }
-            catch (Exception ex)
-            {
-                // Handle the exception and display an error message
-                MessageBox.Show("An error occurred: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        private void buttonRemoveLot_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                // Check if any rows are selected
-                if (parentForm.adgvChip.SelectedRows.Count == 0)
-                {
-                    MessageBox.Show("No rows selected.", "Warning", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("Mismatch between column names and values.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
-                DialogResult result = MessageBox.Show("Do you want to remove the items from the Lot?", "Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-
+                DialogResult result = MessageBox.Show("Do you want to update the selected rows?", "Confirmation", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
                 if (result == DialogResult.Yes)
                 {
+                    List<int> selectedIndices = new List<int>();
                     foreach (DataGridViewRow row in parentForm.adgvChip.SelectedRows)
                     {
-                        // Get the "Lot" column value
-                        string lotValue = row.Cells["Lot"].Value?.ToString();
+                        selectedIndices.Add(row.Index);
+                    }
 
-                        if (!string.IsNullOrWhiteSpace(lotValue))
+                    List<int> selectedRowIDs = new List<int>();
+                    foreach (DataGridViewRow selectedRow in parentForm.adgvChip.SelectedRows)
+                    {
+                        int rowID = Convert.ToInt32(selectedRow.Cells["ID"].Value);
+                        selectedRowIDs.Add(rowID);
+                    }
+
+                    readWriteData.WriteToSqlReplaceMultipleRows(parentForm.destinationTableChip, selectedRowIDs, columnNames, newValues);
+
+                    DataTable dataTableChip = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryChip);
+                    parentForm.adgvChip.DataSource = dataTableChip;
+
+                    // Re-select the rows.
+                    parentForm.adgvChip.ClearSelection();
+                    foreach (int index in selectedIndices)
+                    {
+                        if (index < parentForm.adgvChip.Rows.Count)
                         {
-                            int rowID = Convert.ToInt32(row.Cells["ID"].Value);
-
-                            // Update the DataGridView with the edited values and call the method
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot", "");
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot date", "");
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Last edited", DateTime.Now);
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot by", "");
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Comment", parentForm.userName + " removed from lot");
-                            parentForm.UpdateCellValueAndSql(destinationTableChip, row, "Lot status", "");
+                            parentForm.adgvChip.Rows[index].Selected = true;
                         }
                     }
                 }
-                updateGrid();
             }
             catch (Exception ex)
             {
-                // Handle the exception and display an error message
                 MessageBox.Show("An error occurred: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
 
         private void adgvLotList_CellValueChanged(object sender, DataGridViewCellEventArgs e)
         {
@@ -538,7 +528,6 @@ namespace Chip_Inventory_System
             return newLotName;
         }
 
-
         private void buttonCreateLot_Click_1(object sender, EventArgs e)
         {
             // Generate a unique Lot name
@@ -556,25 +545,40 @@ namespace Chip_Inventory_System
                 dataTable.Columns.Add("Created by", typeof(string));
                 dataTable.Columns.Add("Creation date", typeof(DateTime));
                 dataTable.Columns.Add("Lot status", typeof(string));
+                dataTable.Columns.Add("Current qty", typeof(string));
 
                 // Add a new row to the DataTable
                 DataRow newRow = dataTable.NewRow();
                 newRow["Lot"] = generatedLotName;
                 newRow["Created by"] = parentForm.userName;
-                newRow["Creation date"] = DateTime.Now;
+                newRow["Creation date"] = DateTime.Now.ToString("yyyy-MM-dd hh:mm:ss");
                 newRow["Lot status"] = "Open";
+                newRow["Current qty"] = "0";
 
                 // Add the new row to the DataTable
                 dataTable.Rows.Add(newRow);
-
                 readWriteData.CreateNewRowSql(destinationTableLot, dataTable);
-                interactWithGrid.ReadAndOutputSql(parentForm.connectionString, parentForm.queryLotList, adgvLotList, null);
+                DataTable dataTableSource = readWriteData.ReadFromSql(parentForm.connectionString, parentForm.queryLotList);
+                if (dataTableSource.Columns["ID"].DataType == typeof(string))
+                {
+                    // Add a temporary column
+                    dataTableSource.Columns.Add("TempID", typeof(int));
+
+                    // Copy the data from the original ID column to TempID and convert to int
+                    foreach (DataRow row in dataTableSource.Rows)
+                    {
+                        row["TempID"] = Convert.ToInt32(row["ID"]);
+                    }
+
+                    // Remove the original ID column and rename the TempID column to ID
+                    dataTableSource.Columns.Remove("ID");
+                    dataTableSource.Columns["TempID"].ColumnName = "ID";
+                }
+                adgvLotList.DataSource = dataTableSource;
                 adgvLotList.Sort(adgvLotList.Columns["ID"], ListSortDirection.Descending);
+                Console.WriteLine(dataTableSource.Columns["ID"].DataType);
             }
         }
-
-
-        // Define the columns to include in the PD
 
         private void printListOfChips(List<string> includedColumns)
         {
